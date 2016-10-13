@@ -3,6 +3,9 @@
 
 #include <deque>
 #include <algorithm>
+#include <thread>
+#include <mutex>
+#include <chrono>
 
 typedef enum suit
 {
@@ -56,6 +59,7 @@ class deck
     private:
         std::deque<card_t*> deck_;
         std::deque<card_t*>::iterator it_;
+        std::mutex mutex_;
 };
 
 deck::deck()
@@ -75,10 +79,11 @@ deck::deck()
 
 card_t* deck::draw()
 {
+    std::lock_guard<std::mutex> guard(mutex_);
     if (deck_.empty())
     {
-        printf("Error: empty deck");
-        assert(0);
+        printf("Error: empty deck\n");
+        return NULL;
     }
     card_t *card = deck_.front();
     deck_.pop_front();
@@ -100,12 +105,33 @@ void deck::insert(card_t *card)
     deck_.push_back(card);
     random_shuffle(deck_.begin(), deck_.end());
 }
+
 deck g_deck;
 
-int main (void)
+void player_draw_thread(const char *player)
+{
+    while(1)
+    {
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        card_t *card = NULL;
+        card = g_deck.draw();
+        if (card)
+        {
+            printf("player_%s: I drew ", player);
+            card->speak();
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
+    printf("player_%s: There aren't anymore cards\n", player);
+}
+
+void random_test(void)
 {
     g_deck.speak();
-
     printf("HENRY: drawing 51 cards and only reinserting 40 of them\n");
     for (int i = 0; i < 51; ++i)
     {
@@ -115,10 +141,14 @@ int main (void)
             g_deck.insert(card);
         }
     }
-
-
     g_deck.speak();
+}
 
+int main (void)
+{
+    std::thread player_one(player_draw_thread, "one");
+    std::thread player_two(player_draw_thread, "two");
 
- 
+    player_one.join();
+    player_two.join();
 }
